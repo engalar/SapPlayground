@@ -1,65 +1,54 @@
 
 import java.io.FileInputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.util.Properties;
 
-import com.sap.conn.jco.*;
-import com.sap.conn.jco.ext.*;
+import com.sap.mw.jco.IFunctionTemplate;
+import com.sap.mw.jco.JCO;
+import com.sap.mw.jco.JCO.ParameterList;
+import com.sap.mw.jco.JCO.Table;
 
 public class SAPRFCExample {
 
     public static void main(String[] args) throws UnsupportedEncodingException {
-        JCoDestination destination;
+        JCO.Client mConnection = JCO.createClient("100", "GIRFC", "ediidoc", "EN", "10.0.1.125", "02", null, null);
+        JCO.Repository mRepository = new JCO.Repository("ARAsoft", mConnection);
 
-        // 注册自定义的目标提供者
-        MyDestinationProvider provider = new MyDestinationProvider();
-        Environment.registerDestinationDataProvider(provider);
-
-        try {
-            destination = JCoDestinationManager.getDestination("myDestination");
-            JCoRepository repository = destination.getRepository();
-
-            JCoFunctionTemplate functionTemplate = repository.getFunctionTemplate("Z_MMW1003_PR");
-            JCoFunction function = functionTemplate.getFunction();
-
-            // 285141，285179，284781
-            String formatPrNo = String.format("%010d", Integer.valueOf("285141"));
-            function.getImportParameterList().setValue("S_BANFN", formatPrNo);
-
-            function.execute(destination);
-
-            // 获取函数模块的表格参数
-            JCoParameterList tableParams = function.getTableParameterList();
-
-            // 遍历表格参数列表
-            for (JCoFieldIterator iter = tableParams.getFieldIterator(); iter.hasNextField();) {
-                JCoField field = iter.nextField();
-                String paramName = field.getName();
-                JCoTable table = field.getTable();
-
-                // 遍历表格参数的行
-                for (int i = 0; i < table.getNumRows(); i++) {
-                    table.setRow(i);
-
-                    // 打印表格参数的键值
-                    System.out.println("Parameter: " + paramName + ", Row: " + i);
-
-                    // 遍历表格参数的列
-                    for (JCoField tableField : table) {
-                        String columnName = tableField.getName();
-                        String columnType = tableField.getTypeAsString();
-                        Object columnValue = tableField.getValue();
-
-                        if(columnType=="CHAR"){
-                            columnValue = new String((columnValue.toString()).getBytes("iso-8859-1"), "Big5");
-                        }
-                        System.out.println("Column: " + columnName + ", Value: " + columnValue+ ", Type: " + columnType);
-                    }
-                }
-            }
-
-        } catch (JCoException ex) {
-            ex.printStackTrace();
+        // justin提供的SAP函数接口
+        IFunctionTemplate ft = mRepository.getFunctionTemplate("Z_MMW1003_PR");
+        if (ft == null)
+            throw new RuntimeException("not found in SAP.");
+        JCO.Function jcoFunction = ft.getFunction();
+        JCO.ParameterList IN = jcoFunction.getImportParameterList();
+        String formatPrNo = String.format("%010d", Integer.valueOf("285141"));
+        IN.setValue(formatPrNo, "S_BANFN");
+        mConnection.execute(jcoFunction);
+        // 传回的结果集
+        ParameterList tableParameterList = jcoFunction.getTableParameterList();
+        if (tableParameterList != null) {
+            Table table = tableParameterList.getTable(2);
+            table.setRow(0);
+            String s = table.getString("TXT20");
+            System.out.println(new String(s.getBytes("iso-8859-1"), "Big5"));
+            /*
+             * *
+             * for (int i = 0; i < tableParameterList.getFieldCount(); i++) {
+             * JCO.Table table = tableParameterList.getTable(i);
+             * System.out.println("Table Name: " + table.getName());
+             * 
+             * for (int j = 0; j < table.getNumRows(); j++) {
+             * table.setRow(j);
+             * System.out.println("Row " + j + ":");
+             * 
+             * for (int k = 0; k < table.getNumFields(); k++) {
+             * System.out.println(table.getName(k) + " = " + table.getString(k));
+             * }
+             * 
+             * System.out.println("------------------------");
+             * }
+             * }
+             */
         }
     }
 }
