@@ -28,6 +28,10 @@ public class SAPRFCExample {
 
             function.execute(destination);
 
+            JCoTable t = function.getTableParameterList().getTable(2);
+            t.setRow(0);
+            String TXT20 = t.getString(13);
+
             // 获取函数模块的表格参数
             JCoParameterList tableParams = function.getTableParameterList();
 
